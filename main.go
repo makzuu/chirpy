@@ -1,9 +1,34 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 )
+
+type apiConfig struct {
+	fileServerHits int
+}
+
+func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cfg.fileServerHits++
+		next.ServeHTTP(w, r)
+	})
+}
+
+func (cfg *apiConfig) metricsHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(fmt.Sprintf("Hits: %d", cfg.fileServerHits)))
+}
+
+func (cfg *apiConfig) resetHandler(w http.ResponseWriter, r *http.Request) {
+	cfg.fileServerHits = 0
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(fmt.Sprintf("Hits: %d", cfg.fileServerHits)))
+}
 
 func readiness(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
@@ -19,8 +44,13 @@ func main() {
 		Handler: mux,
 	}
 
-	mux.Handle("/app/*", http.StripPrefix("/app", http.FileServer(http.Dir("."))))
+	fileServerHandler := http.StripPrefix("/app", http.FileServer(http.Dir(".")))
+
+	apiCfg := apiConfig{}
+	mux.Handle("/app/*", apiCfg.middlewareMetricsInc(fileServerHandler))
 	mux.HandleFunc("/healthz", readiness)
+	mux.HandleFunc("/metrics", apiCfg.metricsHandler)
+	mux.HandleFunc("/reset", apiCfg.resetHandler)
 
 	log.Printf("Serving on port: %s\n", port)
 	log.Fatalln(server.ListenAndServe())
