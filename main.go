@@ -48,8 +48,8 @@ func main() {
 
 	apiCfg := apiConfig{}
 	mux.Handle("/app/*", apiCfg.middlewareMetricsInc(fileServerHandler))
-	mux.HandleFunc("/healthz", readiness)
-	mux.HandleFunc("/metrics", apiCfg.metricsHandler)
+	mux.HandleFunc("GET /healthz", readiness)
+	mux.HandleFunc("GET /metrics", apiCfg.metricsHandler)
 	mux.HandleFunc("/reset", apiCfg.resetHandler)
 
 	log.Printf("Serving on port: %s\n", port)
